@@ -3,10 +3,10 @@ OBJ = ${SRC:.c=.o}
 CC = gcc
 CFLAGS = `pkg-config --cflags libzmq`
 LIB = `pkg-config --libs libzmq`
-OUT = car
+OUT = akerd
 
 $(OUT): $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIB)
+	$(CC) -o $@ $(OBJ) $(LIB)
 	
 .c.o:
 	$(CC) $(CFLAGS) -c $<
