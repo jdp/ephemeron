@@ -15,14 +15,14 @@ Aker communicates exclusively over 0MQ.
 ### GET key-name
 
 Requests the value of a key.
-`key-name` is the name of the key.
+|`key-name`|the name of the key|
 Aker will respond with a bulk reply containing the value of the key.
 
 ### SET key-name data-size <new-line> data
 
 Sets the value of a key.
-`key-name` is the name of the key.
-`data-size` is the number of bytes that the key's value occupies.
-`data` is the value assigned to the key.
+|`key-name`|the name of the key|
+|`data-size`|the number of bytes that the key's value occupies|
+|`data`|the value assigned to the key|
 Aker will respond with a success or error message.
 
