@@ -1,8 +1,8 @@
-SRC = server.c
+SRC = main.c server.c
 OBJ = ${SRC:.c=.o}
 CC = gcc
-CFLAGS = `pkg-config --cflags libzmq`
-LIB = `pkg-config --libs libzmq` -ltokyocabinet -lz -lbz2 -lpthread -lm -lc
+CFLAGS = `pkg-config --cflags libzmq tokyocabinet lua`
+LIB = `pkg-config --libs libzmq tokyocabinet lua`
 OUT = akerd
 
 $(OUT): $(OBJ)

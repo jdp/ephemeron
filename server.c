@@ -9,7 +9,11 @@
 #include <math.h>
 #include <tcutil.h>
 #include <zmq.h>
-#include "aker.h"
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+#include "util.h"
+#include "server.h"
 
 static int
 send(void *socket, char *str)
@@ -41,24 +45,48 @@ rawsend(void *socket, void *data, size_t size)
 	return 1;
 }
 
+/*
+ * -- COMMAND API BEGINS! --
+ */
+
 COMMAND(get)
 {
 	int size = 0;
 	int digits = 0;
-	struct aker_value *value = NULL;
+	Item *value = NULL;
 	char *key = NULL, *digits_str = NULL;
 	void *response = NULL;
 	
+	/* Ensure enough arguments were passed with GET */
 	if (tclistnum(args) != 2) {
 		send(socket, "-TOO_FEW_ARGS");
 		return 0;
 	}
+	
+	/* Try to fetch the value associated with the key */
 	key = (char *)tclistval2(args, 1);
-	value = (struct aker_value *)tcmapget(server->book, key, strlen(key), &size);
+	value = (Item *)tcmapget(server->book, key, strlen(key), &size);
 	if (size == 0) {
 		send(socket, "-NO_SUCH_KEY");
 		return 0;
 	}
+	
+	/* Execute callback function if available */
+	lua_getglobal(L, "on_get");
+	if (lua_isfunction(L, -1)) {
+		lua_pushstring(L, key);
+		lua_pushlstring(L, (const char *)value->data, value->size);
+		if (lua_pcall(L, 2, 1, 0) != 0) {
+			ERROR("callback error:\n\t%s\n", lua_tostring(L, -1));
+			send(socket, "-CALLBACK_ERROR");
+			return 0;
+		}
+	}
+	else {
+		lua_pop(L, 1);
+	}
+	
+	/* Send back the response */
 	digits = (int)(log(value->size)/log(10)) + 1;
 	digits_str = (char *)malloc(sizeof(char)*(digits + 1));
 	memset(digits_str, 0, digits + 1);
@@ -78,13 +106,13 @@ COMMAND(set)
 {
 	char *key = NULL;
 	size_t key_size, data_size;
-	struct aker_value *value = NULL;
+	Item *value = NULL;
 	
 	key = (char *)tclistval2(args, 1);
 	key_size = (size_t)strlen(key);
 	data_size = tcatoi((char *)tclistval2(args, tclistnum(args) - 1));
 	
-	value = (struct aker_value *)malloc(sizeof(struct aker_value));
+	value = (Item *)malloc(sizeof(Item));
 	value->expire = time(NULL);
 	value->size = data_size;
 	value->data = data;
@@ -94,46 +122,44 @@ COMMAND(set)
 	return 1;
 }
 
-static struct aker_command *command_table;
-static struct aker_command dirty_command_table[] = {
+static Command *command_table;
+static Command dirty_command_table[] = {
 	{"get", aker_command_get},
 	{"set", aker_command_set}
 };
 
 static int
 sort_command_cb(const void *c1, const void *c2) {
-	return strcasecmp(
-		((struct aker_command *)c1)->name,
-		((struct aker_command *)c2)->name);
+	return strcasecmp(((Command *)c1)->name, ((Command *)c2)->name);
 }
 
 static void
 sort_command_table() {
-	command_table = (struct aker_command *)malloc(sizeof(dirty_command_table));
+	command_table = (Command *)malloc(sizeof(dirty_command_table));
 	memcpy(command_table, dirty_command_table, sizeof(dirty_command_table));
 	qsort(command_table,
-		sizeof(dirty_command_table) / sizeof(struct aker_command),
-		sizeof(struct aker_command), sort_command_cb);
+		sizeof(dirty_command_table) / sizeof(Command),
+		sizeof(Command), sort_command_cb);
 }
 
-static struct aker_command *
+static Command *
 lookup_command(const char *name) {
-	struct aker_command tmp = { name, NULL };
+	Command tmp = { name, NULL };
 	return bsearch(
 		&tmp,
 		command_table,
-		sizeof(dirty_command_table) / sizeof(struct aker_command),
-		sizeof(struct aker_command),
+		sizeof(dirty_command_table) / sizeof(Command),
+		sizeof(Command),
 		sort_command_cb);
 }
 
 int 
-Server_react(struct aker_server *server, void *socket, zmq_msg_t *msg)
+Server_react(Server *server, void *socket, zmq_msg_t *msg)
 {
 	size_t cmdlen, msglen, datalen;
 	char *eol, *message, *command;
 	TCLIST *args;
-	struct aker_command *cmd;
+	Command *cmd;
 	void *data = NULL;
 	
 	message = zmq_msg_data(msg);
@@ -178,7 +204,7 @@ Server_react(struct aker_server *server, void *socket, zmq_msg_t *msg)
 }
 
 int
-Server_serve(struct aker_server *server)
+Server_serve(Server *server)
 {
 	int rc;
 	void *ctx, *s;
@@ -209,32 +235,36 @@ Server_serve(struct aker_server *server)
 	return 1;
 }
 
-struct aker_server *
+int
+Server_configure(Server *server)
+{
+	if (luaL_dofile(L, server->config_file) != 0) {
+		ERROR("could not load config file `%s':\n\t%s\n",
+			server->config_file, lua_tostring(L, -1));
+		lua_close(L);
+		return 0;
+	}
+	return 1;
+}
+
+Server *
 Server_create(void)
 {
-	struct aker_server *server = NULL;
-	server = (struct aker_server *)malloc(sizeof(struct aker_server));
+	Server *server = NULL;
+	
+	server = (Server *)malloc(sizeof(Server));
 	if (server == NULL) {
-		return NULL;
+		ERROR("memory for server not allocated\n");
+		return 0;
 	}
+	server->config_file = "config.lua";
 	server->key_count = 0;
+	if ((L = luaL_newstate()) == NULL) {
+		ERROR("could not initiate scripting environment\n");
+		return 0;
+	}
+	luaL_openlibs(L);
 	server->book = tcmapnew();
 	return server;
-}
- 
-int
-main(int argc, char **argv) 
-{
-	struct aker_server *server;
-	
-	/* Start up the server */
-	server = Server_create();
-	if (server == NULL) {
-		ERROR("server start failed\n");
-		return 1;
-	}
-	Server_serve(server);
-		
-	return 0;
 }
 
