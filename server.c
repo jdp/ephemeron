@@ -128,7 +128,7 @@ lookup_command(const char *name) {
 }
 
 int 
-Server_recognize(struct aker_server *server, void *socket, zmq_msg_t *msg)
+Server_react(struct aker_server *server, void *socket, zmq_msg_t *msg)
 {
 	size_t cmdlen, msglen, datalen;
 	char *eol, *message, *command;
@@ -185,19 +185,23 @@ Server_serve(struct aker_server *server)
 	zmq_msg_t query, resultset;
 	const char *cmd_name, *query_string, *resultset_string = "OK";
 
+	/* Start up the 0MQ server */
 	ctx = zmq_init(1);
 	assert (ctx);
 	s = zmq_socket(ctx, ZMQ_REP);
 	assert (s);
 	rc = zmq_bind(s, "tcp://127.0.0.1:5555");
 	assert (rc == 0);
+	
+	sort_command_table();
 
+	/* Start the request/reply loop */
 	while (1) {
 		rc = zmq_msg_init(&query);
 		assert (rc == 0);
 		rc = zmq_recv(s, &query, 0);
 		assert (rc == 0);
-		if (!Server_recognize(server, s, &query)) {
+		if (!Server_react(server, s, &query)) {
 			ERROR("unrecognized command\n");
 		}
 	}
@@ -229,7 +233,6 @@ main(int argc, char **argv)
 		ERROR("server start failed\n");
 		return 1;
 	}
-	sort_command_table();
 	Server_serve(server);
 		
 	return 0;

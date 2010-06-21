@@ -33,7 +33,7 @@ struct aker_server *
 Server_create(void);
 		
 int 
-Server_recognize(struct aker_server *, void *, zmq_msg_t *);
+Server_react(struct aker_server *, void *, zmq_msg_t *);
 
 int
 Server_serve(struct aker_server *);
