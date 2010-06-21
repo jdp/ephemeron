@@ -209,6 +209,11 @@ Server_react(Server *server, void *socket, zmq_msg_t *msg)
 				return 0;
 			}
 			data = malloc(sizeof(char) * (datalen + 1));
+			if (data == NULL) {
+				ERROR("out of memory");
+				send(socket, "-OUT_OF_MEMORY");
+				return 0;
+			}
 			memset(data + datalen, 0, 1);
 			memcpy(data, message + cmdlen, datalen);
 		}
