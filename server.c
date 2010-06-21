@@ -78,6 +78,7 @@ COMMAND(get)
 		lua_pushlstring(L, (const char *)value->data, value->size);
 		if (lua_pcall(L, 2, 1, 0) != 0) {
 			ERROR("callback error:\n\t%s\n", lua_tostring(L, -1));
+			lua_pop(L, 1);
 			send(socket, "-CALLBACK_ERROR");
 			return 0;
 		}
@@ -112,12 +113,31 @@ COMMAND(set)
 	key_size = (size_t)strlen(key);
 	data_size = tcatoi((char *)tclistval2(args, tclistnum(args) - 1));
 	
+	/* Store the new key */
 	value = (Item *)malloc(sizeof(Item));
 	value->expire = time(NULL);
 	value->size = data_size;
 	value->data = data;
 	
+	/* Execute callback function if available */
+	lua_getglobal(L, "on_set");
+	if (lua_isfunction(L, -1)) {
+		lua_pushstring(L, key);
+		lua_pushlstring(L, (const char *)value->data, value->size);
+		if (lua_pcall(L, 2, 1, 0) != 0) {
+			ERROR("callback error:\n\t%s\n", lua_tostring(L, -1));
+			lua_pop(L, 1);
+			send(socket, "-CALLBACK_ERROR");
+			return 0;
+		}
+	}
+	else {
+		lua_pop(L, 1);
+	}
+	
+	/* After callback so it won't be added when callback errors out */
 	tcmapput(server->book, key, key_size, value, sizeof(*value));
+	
 	send(socket, "+OK");
 	return 1;
 }
