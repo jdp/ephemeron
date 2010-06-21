@@ -10,7 +10,6 @@ def main():
     if entry[0] in data_cmds:
         command = " ".join(entry[0:-1])
         data = entry[-1]
-        print "data cmd:", command, "; data:", data
         s.send(command + "\n" + data)
     else:
         command = " ".join(entry)
