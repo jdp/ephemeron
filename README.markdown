@@ -45,3 +45,8 @@ Database will respond with a success or error message.
 Successful status messages are prefixed with a `+`.
 For example, the SET command will return `+OK` on success.
 
+## Credits
+
+Code by [Justin Poliey](http://justinpoliey.com)
+
+Clear & simple protocol inspired by [Redis](http://redis.io)
