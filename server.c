@@ -80,7 +80,7 @@ COMMAND(get)
 		lua_pushstring(L, key);
 		lua_pushlstring(L, (const char *)value->data, value->size);
 		if (lua_pcall(L, 2, 1, 0) != 0) {
-			ERROR("callback error:\n\t%s\n", lua_tostring(L, -1));
+			ERROR("callback error:\n\t%s", lua_tostring(L, -1));
 			lua_pop(L, 1);
 			send(socket, "-CALLBACK_ERROR");
 			return 0;
@@ -129,7 +129,7 @@ COMMAND(set)
 		lua_pushstring(L, key);
 		lua_pushlstring(L, (const char *)value->data, value->size);
 		if (lua_pcall(L, 2, 1, 0) != 0) {
-			ERROR("callback error:\n\t%s\n", lua_tostring(L, -1));
+			ERROR("callback error:\n\t%s", lua_tostring(L, -1));
 			lua_pop(L, 1);
 			send(socket, "-CALLBACK_ERROR");
 			return 0;
@@ -202,7 +202,7 @@ Server_react(Server *server, void *socket, zmq_msg_t *msg)
 		args = tcstrsplit(tcstrsqzspc(command), " \t");
 		cmd = lookup_command(tclistval2(args, 0));
 		if (cmd == NULL) {
-			ERROR("protocol error:\n\t`%s'\n", command);
+			ERROR("protocol error:\n\t`%s'", command);
 			send(socket, "-INVALID_COMMAND");
 			return 0;
 		}
@@ -210,7 +210,7 @@ Server_react(Server *server, void *socket, zmq_msg_t *msg)
 			/* data size will always be last arg */
 			datalen = tcatoi((char *)tclistval2(args, tclistnum(args) - 1));
 			if ((datalen + cmdlen) != msglen) {
-				ERROR("error receiving data or invalid data size\n");
+				ERROR("error receiving data or invalid data size");
 				send(socket, "-INCORRECT_DATA_SIZE");
 				return 0;
 			}
@@ -259,7 +259,7 @@ Server_serve(Server *server)
 		rc = zmq_recv(s, &query, 0);
 		assert (rc == 0);
 		if (!Server_react(server, s, &query)) {
-			ERROR("unrecognized command\n");
+			ERROR("unrecognized command");
 		}
 	}
 	
@@ -270,7 +270,7 @@ int
 Server_configure(Server *server)
 {
 	if (luaL_dofile(L, server->config_file) != 0) {
-		ERROR("could not load config file `%s':\n\t%s\n",
+		ERROR("could not load config file `%s':\n\t%s",
 			server->config_file, lua_tostring(L, -1));
 		lua_close(L);
 		return 0;
@@ -285,14 +285,14 @@ Server_create(void)
 	
 	server = (Server *)malloc(sizeof(Server));
 	if (server == NULL) {
-		ERROR("memory for server not allocated\n");
+		ERROR("memory for server not allocated");
 		return 0;
 	}
 	server->config_file = "config.lua";
 	server->key_count = 0;
 	server->ttl_extension = 3600;
 	if ((L = luaL_newstate()) == NULL) {
-		ERROR("could not initiate scripting environment\n");
+		ERROR("could not initiate scripting environment");
 		return 0;
 	}
 	luaL_openlibs(L);

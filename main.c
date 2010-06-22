@@ -8,7 +8,7 @@
 int
 main(int argc, char **argv) 
 {
-	struct aker_server *server;
+	Server *server;
 	
 	/* Start up the server */
 	server = Server_create();
