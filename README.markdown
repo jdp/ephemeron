@@ -26,7 +26,7 @@ Requests the value of a key.
 
 `key-name` is the name of the key.
 
-Database will respond with a bulk reply containing the value of the key.
+Database will respond with a value or error reply.
 
 ### SET key-name data-size <new-line> data
 
@@ -40,14 +40,41 @@ Sets the value of a key.
 
 *new-line* is a literal newline `'\n'` character. No Exceptions.
 
-Database will respond with a success or error message.
+Database will respond with a success or error reply.
 
 ## Server Protocol Specification
 
-### Success Message
+### Success Reply
 
 Successful status messages are prefixed with a `+`.
 For example, the SET command will return `+OK` on success.
+
+### Error Reply
+
+When something goes wrong, the server's reply will be prefixed with `-`.
+It will also contain a short, unique error name.
+For example, when a key does not exist, `-NO_SUCH_KEY` is returned.
+
+### Value Reply
+
+A value reply is made up of two parts: the data size and the data.
+Data size is provided to that the data is binary safe, and to ensure nothing went wrong during transmission.
+The data size is sent as an integer prefixed by a `$` and followed with a new line `\n`.
+The binary data follows the new line.
+
+Say the following command was issued:
+
+    SET garden 7
+    octopus
+
+The *garden* key is now set to *octopus*, and the server should have replied with:
+
+    +OK
+
+Now when a GET command for the *garden* key is issued, the response will look like this:
+
+    $7
+    octopus
 
 ## Credits
 
