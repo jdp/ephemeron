@@ -71,6 +71,9 @@ COMMAND(get)
 		return 0;
 	}
 	
+	/* Update the TTL on the item */
+	value->expire += server->ttl_extension;
+	
 	/* Execute callback function if available */
 	lua_getglobal(L, "on_get");
 	if (lua_isfunction(L, -1)) {
@@ -82,10 +85,11 @@ COMMAND(get)
 			send(socket, "-CALLBACK_ERROR");
 			return 0;
 		}
+		if (lua_isstring(L, -1)) {
+			/* transform key here */
+		}
 	}
-	else {
-		lua_pop(L, 1);
-	}
+	lua_pop(L, 1);
 	
 	/* Send back the response */
 	digits = (int)(log(value->size)/log(10)) + 1;
@@ -115,7 +119,7 @@ COMMAND(set)
 	
 	/* Store the new key */
 	value = (Item *)malloc(sizeof(Item));
-	value->expire = time(NULL);
+	value->expire = time(NULL) + server->ttl_extension;
 	value->size = data_size;
 	value->data = data;
 	
@@ -144,8 +148,8 @@ COMMAND(set)
 
 static Command *command_table;
 static Command dirty_command_table[] = {
-	{"get", aker_command_get},
-	{"set", aker_command_set}
+	{"get", fmdb_command_get},
+	{"set", fmdb_command_set}
 };
 
 static int
@@ -284,6 +288,7 @@ Server_create(void)
 	}
 	server->config_file = "config.lua";
 	server->key_count = 0;
+	server->ttl_extension = 3600;
 	if ((L = luaL_newstate()) == NULL) {
 		ERROR("could not initiate scripting environment\n");
 		return 0;
