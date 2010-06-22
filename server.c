@@ -146,6 +146,8 @@ COMMAND(set)
 	return 1;
 }
 
+/* The command lookup is taken directly from Redis */
+
 static Command *command_table;
 static Command dirty_command_table[] = {
 	{"get", fmdb_command_get},
