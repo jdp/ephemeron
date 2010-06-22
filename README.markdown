@@ -24,7 +24,7 @@ Database communicates exclusively over 0MQ.
 
 Requests the value of a key.
 
-|`key-name`|the name of the key|
+`key-name` is the name of the key.
 
 Database will respond with a bulk reply containing the value of the key.
 
@@ -32,9 +32,13 @@ Database will respond with a bulk reply containing the value of the key.
 
 Sets the value of a key.
 
-|`key-name`|the name of the key|
-|`data-size`|the number of bytes that the key's value occupies|
-|`data`|the value assigned to the key|
+`key-name` is the name of the key.
+
+`data-size` is the number of bytes that the key's value occupies.
+
+`data` is the value assigned to the key.
+
+*new-line* is a literal newline `'\n'` character. No Exceptions.
 
 Database will respond with a success or error message.
 
