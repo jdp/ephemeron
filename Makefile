@@ -3,7 +3,7 @@ OBJ = ${SRC:.c=.o}
 CC = gcc
 CFLAGS = `pkg-config --cflags libzmq tokyocabinet lua`
 LIB = `pkg-config --libs libzmq tokyocabinet lua`
-OUT = akerd
+OUT = ephemd
 
 $(OUT): $(OBJ)
 	$(CC) -o $@ $(OBJ) $(LIB)
