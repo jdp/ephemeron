@@ -119,6 +119,11 @@ COMMAND(set)
 	
 	/* Store the new key */
 	value = (Item *)malloc(sizeof(Item));
+	if (value == NULL) {
+		ERROR("out of memory during set operation");
+		send(socket, "-OUT_OF_MEMORY");
+		return 0;
+	}
 	value->expire = time(NULL) + server->ttl_extension;
 	value->size = data_size;
 	value->data = data;
@@ -222,6 +227,7 @@ Server_react(Server *server, void *socket, zmq_msg_t *msg)
 			}
 			memset(data + datalen, 0, 1);
 			memcpy(data, message + cmdlen, datalen);
+			DEBUG("data received: %s", data);
 		}
 		cmd->callback(server, socket, args, data);
 		return 1;

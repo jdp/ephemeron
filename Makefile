@@ -1,4 +1,4 @@
-SRC = main.c server.c
+SRC = main.c util.c server.c
 OBJ = ${SRC:.c=.o}
 CC = gcc
 CFLAGS = `pkg-config --cflags libzmq tokyocabinet lua`
