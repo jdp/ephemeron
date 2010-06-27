@@ -52,10 +52,8 @@ rawsend(void *socket, void *data, size_t size)
 COMMAND(get)
 {
 	int size = 0;
-	int digits = 0;
 	Item *value = NULL;
-	char *key = NULL, *digits_str = NULL;
-	void *response = NULL;
+	char *key = NULL;
 	
 	/* Ensure enough arguments were passed with GET */
 	if (tclistnum(args) != 2) {
@@ -80,7 +78,7 @@ COMMAND(get)
 		lua_pushstring(L, key);
 		lua_pushlstring(L, (const char *)value->data, value->size);
 		if (lua_pcall(L, 2, 1, 0) != 0) {
-			ERROR("callback error:\n\t%s", lua_tostring(L, -1));
+			ERROR("callback error: %s", lua_tostring(L, -1));
 			lua_pop(L, 1);
 			send(socket, "-CALLBACK_ERROR");
 			return 0;
@@ -92,19 +90,7 @@ COMMAND(get)
 	lua_pop(L, 1);
 	
 	/* Send back the response */
-	digits = (int)(log(value->size)/log(10)) + 1;
-	digits_str = (char *)malloc(sizeof(char)*(digits + 1));
-	memset(digits_str, 0, digits + 1);
-	sprintf(digits_str, "%lu", value->size);
-	response = malloc(value->size + digits + 2);
-	memset(response, '$', 1);
-	memcpy(response + 1, digits_str, digits);
-	memset(response + digits + 1, '\n', 1);
-	memcpy(response + digits + 2, value->data, value->size);
-	rawsend(socket, response, value->size + digits + 2);
-	free(digits_str);
-	free(response);
-	return 1;
+	return Server_reply_value(server, socket, value);
 }
 
 COMMAND(set)
@@ -184,6 +170,34 @@ lookup_command(const char *name) {
 		sort_command_cb);
 }
 
+int
+Server_reply_value(Server *server, void *socket, Item *item)
+{
+	int digits;
+	char *digits_str = NULL;
+	void *response = NULL;
+	
+	digits = (int)(log(item->size)/log(10)) + 1;
+	if ((digits_str = (char *)malloc(sizeof(char)*(digits + 1))) == NULL) {
+		ERROR("oom: digits string in value response");
+		return 0;
+	}
+	memset(digits_str, 0, digits + 1);
+	sprintf(digits_str, "%lu", item->size);
+	if ((response = malloc(item->size + digits + 2)) == NULL) {
+		ERROR("oom: response in value response");
+		return 0;
+	}
+	memset(response, '$', 1);
+	memcpy(response + 1, digits_str, digits);
+	memset(response + digits + 1, '\n', 1);
+	memcpy(response + digits + 2, item->data, item->size);
+	rawsend(socket, response, item->size + digits + 2);
+	free(digits_str);
+	free(response);
+	return 1;
+}
+
 int 
 Server_react(Server *server, void *socket, zmq_msg_t *msg)
 {
@@ -229,7 +243,7 @@ Server_react(Server *server, void *socket, zmq_msg_t *msg)
 			memcpy(data, message + cmdlen, datalen);
 			DEBUG("data received: %s", data);
 		}
-		cmd->callback(server, socket, args, data);
+		cmd->fn(server, socket, args, data);
 		return 1;
 	}
 	else {

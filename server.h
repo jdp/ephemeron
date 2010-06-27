@@ -12,19 +12,19 @@ typedef struct fmdb_server
     TCMAP          *book;
 } Server;
 
-typedef struct fmdb_value
+typedef struct fmdb_item
 {
     time_t  expire;
     size_t  size;
     void   *data;
 } Item;
 
-typedef int fmdb_callback(struct fmdb_server *, void *, TCLIST *, void *);
+typedef int fmdb_command_fn(struct fmdb_server *, void *, TCLIST *, void *);
 
 typedef struct fmdb_command
 {
-	const char    *name;
-	fmdb_callback *callback;
+	const char      *name;
+	fmdb_command_fn *fn;
 } Command;
 
 #define COMMAND(N) static int \
@@ -42,6 +42,9 @@ Server_configure(struct fmdb_server *server);
 		
 int 
 Server_react(struct fmdb_server *, void *, zmq_msg_t *);
+
+int
+Server_reply_value(struct fmdb_server *, void *, struct fmdb_item *);
 
 int
 Server_serve(struct fmdb_server *);
