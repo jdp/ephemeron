@@ -73,21 +73,12 @@ COMMAND(get)
 	value->expire += server->ttl_extension;
 	
 	/* Execute callback function if available */
-	lua_getglobal(L, "on_get");
-	if (lua_isfunction(L, -1)) {
-		lua_pushstring(L, key);
-		lua_pushlstring(L, (const char *)value->data, value->size);
-		if (lua_pcall(L, 2, 1, 0) != 0) {
-			ERROR("callback error: %s", lua_tostring(L, -1));
-			lua_pop(L, 1);
-			send(socket, "-CALLBACK_ERROR");
-			return 0;
-		}
-		if (lua_isstring(L, -1)) {
-			/* transform key here */
-		}
+	if (!Server_call_callback(server, socket, "on_get", value)) {
+		ERROR("callback error: %s", lua_tostring(L, -1));
+		lua_pop(L, 1);
+		send(socket, "-CALLBACK_ERROR");
+		return 0;
 	}
-	lua_pop(L, 1);
 	
 	/* Send back the response */
 	return Server_reply_value(server, socket, value);
@@ -111,23 +102,15 @@ COMMAND(set)
 		return 0;
 	}
 	value->expire = time(NULL) + server->ttl_extension;
+	value->key = key;
 	value->size = data_size;
 	value->data = data;
 	
-	/* Execute callback function if available */
-	lua_getglobal(L, "on_set");
-	if (lua_isfunction(L, -1)) {
-		lua_pushstring(L, key);
-		lua_pushlstring(L, (const char *)value->data, value->size);
-		if (lua_pcall(L, 2, 1, 0) != 0) {
-			ERROR("callback error:\n\t%s", lua_tostring(L, -1));
-			lua_pop(L, 1);
-			send(socket, "-CALLBACK_ERROR");
-			return 0;
-		}
-	}
-	else {
+	if (!Server_call_callback(server, socket, "on_set", value)) {
+		ERROR("callback error: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
+		send(socket, "-CALLBACK_ERROR");
+		return 0;
 	}
 	
 	/* After callback so it won't be added when callback errors out */
@@ -171,6 +154,25 @@ lookup_command(const char *name) {
 }
 
 int
+Server_call_callback(Server *server, void *socket, const char *cb_name, Item *item)
+{
+	int args = (item == NULL)? 0: 2;
+	
+	lua_getglobal(L, cb_name);
+	if (lua_isfunction(L, -1)) {
+		if (args > 0) {
+			lua_pushstring(L, item->key);
+			lua_pushlstring(L, (const char *)item->data, item->size);
+		}
+		if (lua_pcall(L, args, 1, 0) != 0) {
+			lua_pop(L, 1);
+			return 0;
+		}
+	}
+	return 1;
+}
+
+int
 Server_reply_value(Server *server, void *socket, Item *item)
 {
 	int digits;
@@ -180,12 +182,14 @@ Server_reply_value(Server *server, void *socket, Item *item)
 	digits = (int)(log(item->size)/log(10)) + 1;
 	if ((digits_str = (char *)malloc(sizeof(char)*(digits + 1))) == NULL) {
 		ERROR("oom: digits string in value response");
+		send(socket, "-OUT_OF_MEMORY");
 		return 0;
 	}
 	memset(digits_str, 0, digits + 1);
 	sprintf(digits_str, "%lu", item->size);
 	if ((response = malloc(item->size + digits + 2)) == NULL) {
 		ERROR("oom: response in value response");
+		send(socket, "-OUT_OF_MEMORY");
 		return 0;
 	}
 	memset(response, '$', 1);
@@ -221,7 +225,7 @@ Server_react(Server *server, void *socket, zmq_msg_t *msg)
 		args = tcstrsplit(tcstrsqzspc(command), " \t");
 		cmd = lookup_command(tclistval2(args, 0));
 		if (cmd == NULL) {
-			ERROR("protocol error:\n\t`%s'", command);
+			ERROR("protocol error: %s", command);
 			send(socket, "-INVALID_COMMAND");
 			return 0;
 		}
@@ -290,7 +294,7 @@ int
 Server_configure(Server *server)
 {
 	if (luaL_dofile(L, server->config_file) != 0) {
-		ERROR("could not load config file `%s':\n\t%s",
+		ERROR("could not load config file `%s': %s",
 			server->config_file, lua_tostring(L, -1));
 		lua_close(L);
 		return 0;

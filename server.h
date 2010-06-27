@@ -16,6 +16,7 @@ typedef struct fmdb_item
 {
     time_t  expire;
     size_t  size;
+	char   *key;
     void   *data;
 } Item;
 
