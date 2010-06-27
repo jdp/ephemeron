@@ -48,6 +48,9 @@ int
 Server_reply_value(struct fmdb_server *, void *, struct fmdb_item *);
 
 int
+Server_call_callback(struct fmdb_server *, void *, const char *, struct fmdb_item *);
+
+int
 Server_serve(struct fmdb_server *);
 
 #endif
