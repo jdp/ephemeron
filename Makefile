@@ -1,8 +1,8 @@
 SRC = main.c util.c server.c
 OBJ = ${SRC:.c=.o}
 CC = gcc
-CFLAGS = `pkg-config --cflags libzmq tokyocabinet lua`
-LIB = `pkg-config --libs libzmq tokyocabinet lua`
+CFLAGS = `pkg-config --cflags libzmq tokyocabinet lua5.1`
+LIB = `pkg-config --libs libzmq tokyocabinet lua5.1`
 OUT = ephemd
 
 $(OUT): $(OBJ)

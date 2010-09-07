@@ -80,6 +80,16 @@ COMMAND(get)
 		return 0;
 	}
 	
+	/* Mutate the value if applicable */
+	if (!lua_isnoneornil(L, -1)) {
+		value->data = lua_tostring(L, -1);
+		value->size = strlen(value->data);
+	}
+	else {
+		/* Clear stack if it's junk data we can't use */
+		lua_pop(L, lua_gettop(L));
+	}
+	
 	/* Send back the response */
 	return Server_reply_value(server, socket, value);
 }
@@ -94,7 +104,7 @@ COMMAND(set)
 	key_size = (size_t)strlen(key);
 	data_size = tcatoi((char *)tclistval2(args, tclistnum(args) - 1));
 	
-	/* Store the new key */
+	/* Prepare new key (don't store it yet) */
 	value = (Item *)malloc(sizeof(Item));
 	if (value == NULL) {
 		ERROR("out of memory during set operation");
@@ -106,11 +116,22 @@ COMMAND(set)
 	value->size = data_size;
 	value->data = data;
 	
+	/* Perform callback on item, possibly mutating it */
 	if (!Server_call_callback(server, socket, "on_set", value)) {
 		ERROR("callback error: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		send(socket, "-CALLBACK_ERROR");
 		return 0;
+	}
+	
+	/* Mutate the value if applicable */
+	if (!lua_isnoneornil(L, -1)) {
+		value->data = lua_tostring(L, -1);
+		value->size = strlen(value->data);
+	}
+	else {
+		/* Clear stack if it's junk data we can't use */
+		lua_pop(L, lua_gettop(L));
 	}
 	
 	/* After callback so it won't be added when callback errors out */
@@ -165,6 +186,7 @@ Server_call_callback(Server *server, void *socket, const char *cb_name, Item *it
 			lua_pushlstring(L, (const char *)item->data, item->size);
 		}
 		if (lua_pcall(L, args, 1, 0) != 0) {
+			ERROR("in callback `%s': %s", cb_name, lua_tostring(L, -1));
 			lua_pop(L, 1);
 			return 0;
 		}
