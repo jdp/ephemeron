@@ -82,7 +82,7 @@ COMMAND(get)
 	
 	/* Mutate the value if applicable */
 	if (!lua_isnoneornil(L, -1)) {
-		value->data = lua_tostring(L, -1);
+		value->data = (char *)lua_tostring(L, -1);
 		value->size = strlen(value->data);
 	}
 	else {
@@ -126,7 +126,7 @@ COMMAND(set)
 	
 	/* Mutate the value if applicable */
 	if (!lua_isnoneornil(L, -1)) {
-		value->data = lua_tostring(L, -1);
+		value->data = (char *)lua_tostring(L, -1);
 		value->size = strlen(value->data);
 	}
 	else {
@@ -208,7 +208,7 @@ Server_reply_value(Server *server, void *socket, Item *item)
 		return 0;
 	}
 	memset(digits_str, 0, digits + 1);
-	sprintf(digits_str, "%lu", item->size);
+	sprintf(digits_str, "%zu", item->size);
 	if ((response = malloc(item->size + digits + 2)) == NULL) {
 		ERROR("oom: response in value response");
 		send(socket, "-OUT_OF_MEMORY");
@@ -287,13 +287,15 @@ Server_serve(Server *server)
 	void *ctx, *s;
 	zmq_msg_t query, resultset;
 	const char *cmd_name, *query_string, *resultset_string = "OK";
+	char endpoint[128];
 
 	/* Start up the 0MQ server */
 	ctx = zmq_init(1);
 	assert (ctx);
 	s = zmq_socket(ctx, ZMQ_REP);
 	assert (s);
-	rc = zmq_bind(s, "tcp://127.0.0.1:5555");
+	sprintf(endpoint, "tcp://%s:%d", server->host, server->port);
+	rc = zmq_bind(s, endpoint);
 	assert (rc == 0);
 	
 	sort_command_table();
@@ -315,11 +317,27 @@ Server_serve(Server *server)
 int
 Server_configure(Server *server)
 {
+	char *field;
 	if (luaL_dofile(L, server->config_file) != 0) {
 		ERROR("could not load config file `%s': %s",
 			server->config_file, lua_tostring(L, -1));
 		lua_close(L);
 		return 0;
+	}
+	lua_getglobal(L, "host");
+	if (lua_isstring(L, -1)) {
+		server->host = lua_tostring(L, -1);
+		lua_pop(L, -1);
+	}
+	lua_getglobal(L, "port");
+	if (lua_isnumber(L, -1)) {
+		server->port = lua_tointeger(L, -1);
+		lua_pop(L, -1);
+	}
+	lua_getglobal(L, "ttl_extension");
+	if (lua_isnumber(L, -1)) {
+		server->ttl_extension = lua_tointeger(L, -1);
+		lua_pop(L, -1);
 	}
 	return 1;
 }
